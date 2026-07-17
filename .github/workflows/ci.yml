@@ -4,8 +4,8 @@ on:
   push:
     branches: [main, master]
   pull_request:
-  # Manual trigger for the live e2e against an ephemeral GitHub repo.
-  # Requires you to supply a GitHub PAT (repo scope) and an LLM key.
+# Manual trigger for the live e2e against an ephemeral GitHub repo.
+# Requires you to supply a GitHub PAT (repo scope) and an LLM key.
   workflow_dispatch:
     inputs:
       llm_base:
