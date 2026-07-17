@@ -13,19 +13,20 @@ from common.config import settings
 from common.db import connect, load_patterns, save_review
 from common.github import fetch_pr_diff, get_installation_token, parse_webhook
 from common.models import PRContext, ReviewRecord, ReviewResult
-from common.observability import REVIEW_RUNS, REVIEW_LATENCY
+from common.observability import REVIEW_RUNS, REVIEW_LATENCY, instrument
 from engine import run_review
-from common.server import add_landing
-from common.observability import instrument
+from common.server import add_landing, make_lifespan
 
-app = FastAPI(title="AI PR Reviewer — Orchestrator", version="1.0.0")
-add_landing(app, "Orchestrator", "Drives the review: fetches the code diff, loads repo-specific learned patterns, runs the LangGraph multi-agent engine, and hands the merged result to the Reviewer.")
-instrument(app)
+_SEEN: set[str] = set()
 
 
-@app.on_event("startup")
 async def _startup():
     await connect()
+
+
+app = FastAPI(title="AI PR Reviewer — Orchestrator", version="1.0.0", lifespan=make_lifespan(_startup))
+add_landing(app, "Orchestrator", "Drives the review: fetches the code diff, loads repo-specific learned patterns, runs the LangGraph multi-agent engine, and hands the merged result to the Reviewer.")
+instrument(app)
 
 
 @app.get("/health")

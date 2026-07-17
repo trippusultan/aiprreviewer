@@ -1,11 +1,17 @@
-"""Shared root landing page + helpers for the FastAPI services.
+"""Shared root landing page + lifespan helpers for the FastAPI services.
 
 Without a root route, opening a service in the browser shows FastAPI's bare
 `{"detail":"Not Found"}`. add_landing() gives every service a clean, on-brand
 HTML page (editorial matte: bone background, terracotta accent) with links to
 Swagger (`/docs`) and the health check.
+
+make_lifespan() wraps an async startup coroutine so services use FastAPI's
+modern lifespan API instead of the deprecated `@app.on_event("startup")`.
 """
 from __future__ import annotations
+
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
@@ -14,7 +20,7 @@ _LANDING = """<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{name}</title>
 <style>
   :root {{--bg:#f4f1ea;--ink:#2b2b2b;--accent:#b5562f;--line:#d8d2c4}}
@@ -57,3 +63,22 @@ def add_landing(app: FastAPI, name: str, description: str) -> None:
     @app.get("/", response_class=HTMLResponse, include_in_schema=False)
     async def _root() -> HTMLResponse:  # noqa: B008
         return HTMLResponse(html)
+
+
+def make_lifespan(on_startup: "callable[[], object]") -> "callable[[], object]":
+    """Wrap an async startup coroutine into a FastAPI lifespan context manager.
+
+    Usage::
+
+        app = FastAPI(lifespan=make_lifespan(_startup))
+
+    where ``_startup`` is an ``async def`` run once at startup. This replaces
+    the deprecated ``@app.on_event("startup")`` hook.
+    """
+
+    @asynccontextmanager
+    async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
+        await on_startup()
+        yield
+
+    return _lifespan

@@ -15,17 +15,16 @@ from fastapi import FastAPI
 from common.config import settings
 from common.db import connect, load_patterns, upsert_pattern
 from common.models import LearnedPattern
-from common.server import add_landing
+from common.server import add_landing, make_lifespan
 from common.observability import instrument
 
-app = FastAPI(title="AI PR Reviewer — Learner", version="1.0.0")
-add_landing(app, "Learner", "Closes the self-improving loop: extracts frequently recurring style and architecture issues from merged pull requests and stores them as repo-specific patterns for future reviews.")
-instrument(app)
-
-
-@app.on_event("startup")
 async def _startup():
     await connect()
+
+
+app = FastAPI(title="AI PR Reviewer — Learner", version="1.0.0", lifespan=make_lifespan(_startup))
+add_landing(app, "Learner", "Closes the self-improving loop: extracts frequently recurring style and architecture issues from merged pull requests and stores them as repo-specific patterns for future reviews.")
+instrument(app)
 
 
 @app.get("/health")

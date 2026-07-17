@@ -18,10 +18,17 @@ from common.github import fetch_pr_diff, get_installation_token, parse_webhook
 from common.observability import PR_EVENTS
 from common.db import connect, save_review
 from common.models import PRContext
-from common.server import add_landing
+from common.server import add_landing, make_lifespan
 from common.observability import instrument
 
-app = FastAPI(title="AI PR Reviewer — Webhook", version="1.0.0")
+_SEEN: set[str] = set()  # in-process dedup cache (Redis-backed in prod)
+
+
+async def _startup():
+    await connect()
+
+
+app = FastAPI(title="AI PR Reviewer — Webhook", version="1.0.0", lifespan=make_lifespan(_startup))
 add_landing(
     app,
     "Webhook",
@@ -30,14 +37,6 @@ add_landing(
     "forwarded to the Learner to close the self-improving feedback loop.",
 )
 instrument(app)
-
-_SEEN: set[str] = set()  # in-process dedup cache (Redis-backed in prod)
-
-
-@app.on_event("startup")
-async def _startup():
-    await connect()
-
 
 @app.get("/health")
 async def health():
