@@ -1,0 +1,72 @@
+# AI PR Reviewer — full stack
+# Offline-friendly: set RUN_OFFLINE=true to use StubLLM + sqlite (no OpenAI/Redis/PG).
+services:
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: aipr
+      POSTGRES_PASSWORD: aipr
+      POSTGRES_DB: aipr
+    ports: ["5432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  gateway:
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE: gateway } }
+    environment: &env
+      RUN_OFFLINE: "false"
+      DATABASE_URL: postgresql+asyncpg://aipr:aipr@postgres:5432/aipr
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-change-me}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      ORCHESTRATOR_URL: http://orchestrator:8002
+      REVIEWER_URL: http://reviewer:8003
+      LEARNER_URL: http://learner:8004
+    ports: ["8000:8000"]
+
+  webhook:
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE: webhook } }
+    environment: *env
+    ports: ["8001:8001"]
+
+  orchestrator:
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE: orchestrator } }
+    environment: *env
+    ports: ["8002:8002"]
+
+  reviewer:
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE: reviewer } }
+    environment: *env
+    ports: ["8003:8003"]
+
+  learner:
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE: learner } }
+    environment: *env
+    ports: ["8004:8004"]
+
+  worker:
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE: worker } }
+    environment: *env
+    command: celery -A worker.celery_app worker --loglevel=info
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports: ["9090:9090"]
+
+  grafana:
+    image: grafana/grafana:latest
+    ports: ["3000:3000"]
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+
+volumes:
+  pgdata:
