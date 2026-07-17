@@ -1,6 +1,10 @@
-"""LLM provider-selection tests (no network calls)."""
-import importlib
+"""LLM provider-selection tests.
 
+Provider SDKs (openai, anthropic) are OPTIONAL extras, so the real-client tests
+skip cleanly when the dependency isn't installed — get_llm() degrades to StubLLM
+which is always available. This keeps the suite green everywhere (base install,
+providers extra, or offline).
+"""
 import common.config as config
 from common.llm import get_llm, OpenAICompatibleLLM, AnthropicLLM, StubLLM
 
@@ -16,6 +20,8 @@ def test_offline_uses_stub():
 
 
 def test_anthropic_uses_native_client_with_key():
+    pytest = __import__("pytest")
+    pytest.importorskip("anthropic")
     _set(
         run_offline=False,
         llm_provider="anthropic",
@@ -34,6 +40,8 @@ def test_anthropic_without_key_falls_back_to_stub():
 
 
 def test_openai_compatible_with_key():
+    pytest = __import__("pytest")
+    pytest.importorskip("openai")
     _set(
         run_offline=False,
         llm_provider="openai-compatible",
@@ -45,6 +53,8 @@ def test_openai_compatible_with_key():
 
 
 def test_ollama_no_key_but_base_url_uses_openai_compatible():
+    pytest = __import__("pytest")
+    pytest.importorskip("openai")
     _set(
         run_offline=False,
         llm_provider="openai-compatible",
@@ -56,6 +66,8 @@ def test_ollama_no_key_but_base_url_uses_openai_compatible():
 
 
 def test_openrouter_alias_via_openai_compatible():
+    pytest = __import__("pytest")
+    pytest.importorskip("openai")
     _set(
         run_offline=False,
         llm_provider="openai-compatible",
@@ -70,7 +82,6 @@ def test_openrouter_alias_via_openai_compatible():
 
 def test_legacy_openai_env_still_works():
     # Legacy OPENAI_* vars back-fill the LLM_* fields at construction time.
-    # Simulate that: clear LLM_* and force the config to read OPENAI_API_KEY.
     import os
 
     os.environ["OPENAI_API_KEY"] = "sk-legacy"
@@ -85,4 +96,6 @@ def test_legacy_openai_env_still_works():
 
     _il.reload(config)
     assert config.settings.llm_api_key == "sk-legacy"
+    # With no openai SDK installed this resolves to StubLLM; with it, to the
+    # OpenAI-compatible client. Both are correct outcomes.
     assert isinstance(get_llm(), (OpenAICompatibleLLM, StubLLM))

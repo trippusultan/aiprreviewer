@@ -190,18 +190,28 @@ def _summary(agent: ReviewCategory, comments) -> str:
 
 
 def get_llm() -> BaseLLM:
-    """Select an LLM by LLM_PROVIDER. Falls back to StubLLM when offline or
-    unconfigured so the pipeline never hard-fails on missing credentials."""
+    """Select an LLM by LLM_PROVIDER. Falls back to StubLLM when offline,
+    unconfigured, or when the provider's optional SDK is not installed — so the
+    pipeline never hard-fails on a missing dependency."""
     if settings.run_offline:
         return StubLLM()
     provider = (settings.llm_provider or "openai-compatible").lower()
     if provider == "anthropic":
-        if settings.llm_api_key and not settings.llm_api_key.startswith("sk-offline"):
+        if not settings.llm_api_key or settings.llm_api_key.startswith("sk-offline"):
+            return StubLLM()
+        try:
             return AnthropicLLM()
-        return StubLLM()
+        except ModuleNotFoundError:
+            return StubLLM()
     # openai-compatible (default): valid if a key OR a custom base URL is set.
     if settings.llm_api_key and not settings.llm_api_key.startswith("sk-offline"):
-        return OpenAICompatibleLLM()
+        try:
+            return OpenAICompatibleLLM()
+        except ModuleNotFoundError:
+            return StubLLM()
     if settings.llm_base_url and settings.llm_base_url != "https://api.openai.com/v1":
-        return OpenAICompatibleLLM()  # e.g. Ollama / vLLM with no key
+        try:
+            return OpenAICompatibleLLM()  # e.g. Ollama / vLLM with no key
+        except ModuleNotFoundError:
+            return StubLLM()
     return StubLLM()

@@ -15,5 +15,5 @@ jobs:
           python-version: "3.11"
       - run: pip install uv
       - run: uv venv .venv
-      - run: . .venv/bin/activate && uv pip install . pytest pytest-asyncio httpx
+      - run: . .venv/bin/activate && uv pip install ".[providers]" pytest pytest-asyncio httpx
       - run: . .venv/bin/activate && RUN_OFFLINE=true DATABASE_URL="sqlite+aiosqlite:///:memory:" GITHUB_WEBHOOK_SECRET=ci pytest -q
