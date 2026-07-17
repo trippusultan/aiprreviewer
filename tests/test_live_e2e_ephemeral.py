@@ -125,7 +125,10 @@ def test_ephemeral_repo_full_review_pipeline():
         diff = asyncio.run(fetch_pr_diff(ctx))
         assert "diff --git" in diff, "diff fetch returned no diff"
 
-        # 4) Run the engine (real LLM if LIVE_E2E_LLM_KEY set, else StubLLM).
+        # 4) Run the engine. With LIVE_E2E_LLM_KEY set we use the real provider;
+        # otherwise we stay offline (StubLLM) so the live GitHub path is still
+        # fully exercised without needing an LLM key. Never force RUN_OFFLINE off
+        # when no key is present -- that would crash get_llm() on a missing key.
         settings.github_token = TOKEN
         if LLM_KEY:
             settings.llm_api_key = LLM_KEY
@@ -133,6 +136,8 @@ def test_ephemeral_repo_full_review_pipeline():
             settings.llm_model = LLM_MODEL
             settings.llm_provider = "openai-compatible"
             os.environ["RUN_OFFLINE"] = "false"
+        else:
+            os.environ["RUN_OFFLINE"] = "true"
         result = asyncio.run(run_review(diff))
         assert result.comments, "engine produced no findings on seeded PR"
 

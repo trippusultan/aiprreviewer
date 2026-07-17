@@ -72,5 +72,4 @@ jobs:
           LIVE_E2E_LLM_BASE: ${{ github.event.inputs.llm_base }}
           LIVE_E2E_LLM_MODEL: ${{ github.event.inputs.llm_model }}
           LIVE_E2E_REPO_PREFIX: ${{ github.event.inputs.repo_prefix }}
-          RUN_OFFLINE: "false"
         run: . .venv/bin/activate && DATABASE_URL="sqlite+aiosqlite:///:memory:" GITHUB_WEBHOOK_SECRET=ci pytest tests/test_live_e2e_ephemeral.py -q -s
