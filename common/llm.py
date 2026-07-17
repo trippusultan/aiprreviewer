@@ -1,11 +1,20 @@
-"""LLM abstraction: real OpenAI client or a deterministic stub for offline runs.
+"""LLM abstraction: provider-agnostic client or a deterministic stub for offline runs.
+
+Supported providers (set LLM_PROVIDER in .env):
+  * "openai-compatible" (default) — OpenAI and ANY OpenAI-compatible endpoint:
+    OpenRouter, Groq, DeepSeek, Together, Ollama, vLLM, Azure OpenAI, etc.
+    Configure via LLM_BASE_URL + LLM_API_KEY + LLM_MODEL.
+  * "anthropic" — Anthropic Claude (claude-3-5-sonnet, etc).
+  * offline — no key/endpoint needed; the StubLLM produces a valid structured
+    review so the whole pipeline runs without network access (pytest, demos).
 
 The StubLLM lets the entire review pipeline execute end-to-end without any
-network/API key — essential for local verification (pytest).
+network/API key — essential for local verification.
 """
 from __future__ import annotations
 
 import json
+import re
 from abc import ABC, abstractmethod
 
 from common.config import settings
@@ -18,15 +27,18 @@ class BaseLLM(ABC):
         ...
 
 
-class OpenAILLM(BaseLLM):
+class OpenAICompatibleLLM(BaseLLM):
+    """OpenAI and every OpenAI-compatible API (OpenRouter, Groq, DeepSeek,
+    Together, Ollama, vLLM, Azure). Just point LLM_BASE_URL at it."""
+
     def __init__(self) -> None:
         from openai import AsyncOpenAI
 
         self._client = AsyncOpenAI(
-            api_key=settings.openai_api_key,
-            base_url=settings.openai_base_url or None,
+            api_key=settings.llm_api_key or "not-needed",
+            base_url=settings.llm_base_url or None,
         )
-        self._model = settings.openai_model
+        self._model = settings.llm_model
 
     async def complete(self, system: str, user: str) -> str:
         resp = await self._client.chat.completions.create(
@@ -39,6 +51,38 @@ class OpenAILLM(BaseLLM):
             response_format={"type": "json_object"},
         )
         return resp.choices[0].message.content or ""
+
+
+class AnthropicLLM(BaseLLM):
+    """Native Anthropic Claude client (no OpenAI shim required)."""
+
+    def __init__(self) -> None:
+        from anthropic import AsyncAnthropic
+
+        self._client = AsyncAnthropic(api_key=settings.llm_api_key)
+        self._model = settings.llm_model or "claude-3-5-sonnet-latest"
+
+    async def complete(self, system: str, user: str) -> str:
+        resp = await self._client.messages.create(
+            model=self._model,
+            max_tokens=2048,
+            system=system,
+            messages=[{"role": "user", "content": user}],
+        )
+        text = "".join(
+            block.text for block in resp.content if getattr(block, "type", "") == "text"
+        )
+        return _extract_json(text)
+
+
+def _extract_json(text: str) -> str:
+    """Pull the first {...} JSON object out of a model response."""
+    try:
+        return json.dumps(json.loads(text))
+    except Exception:
+        pass
+    m = re.search(r"\{.*\}", text, re.DOTALL)
+    return m.group(0) if m else "{}"
 
 
 class StubLLM(BaseLLM):
@@ -146,6 +190,18 @@ def _summary(agent: ReviewCategory, comments) -> str:
 
 
 def get_llm() -> BaseLLM:
-    if settings.run_offline or not settings.openai_api_key.startswith("sk-"):
+    """Select an LLM by LLM_PROVIDER. Falls back to StubLLM when offline or
+    unconfigured so the pipeline never hard-fails on missing credentials."""
+    if settings.run_offline:
         return StubLLM()
-    return OpenAILLM()
+    provider = (settings.llm_provider or "openai-compatible").lower()
+    if provider == "anthropic":
+        if settings.llm_api_key and not settings.llm_api_key.startswith("sk-offline"):
+            return AnthropicLLM()
+        return StubLLM()
+    # openai-compatible (default): valid if a key OR a custom base URL is set.
+    if settings.llm_api_key and not settings.llm_api_key.startswith("sk-offline"):
+        return OpenAICompatibleLLM()
+    if settings.llm_base_url and settings.llm_base_url != "https://api.openai.com/v1":
+        return OpenAICompatibleLLM()  # e.g. Ollama / vLLM with no key
+    return StubLLM()

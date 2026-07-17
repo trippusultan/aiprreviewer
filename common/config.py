@@ -30,10 +30,15 @@ class Settings:
         self.run_offline: bool = _bool("RUN_OFFLINE", True)
         self.log_level: str = _env("LOG_LEVEL", "INFO")
 
-        # LLM
-        self.openai_api_key: str = _env("OPENAI_API_KEY", "sk-offline")
-        self.openai_model: str = _env("OPENAI_MODEL", "gpt-4o-mini")
-        self.openai_base_url: str = _env("OPENAI_BASE_URL", "https://api.openai.com/v1")
+        # LLM (provider-agnostic)
+        # provider: "openai-compatible" (default; also covers OpenRouter, Groq,
+        # DeepSeek, Together, Ollama, vLLM) or "anthropic".
+        self.llm_provider: str = _env("LLM_PROVIDER", "openai-compatible")
+        self.llm_api_key: str = _env("LLM_API_KEY", _env("OPENAI_API_KEY", "sk-offline"))
+        self.llm_base_url: str = _env(
+            "LLM_BASE_URL", _env("OPENAI_BASE_URL", "https://api.openai.com/v1")
+        )
+        self.llm_model: str = _env("LLM_MODEL", _env("OPENAI_MODEL", "gpt-4o-mini"))
 
         # GitHub
         self.github_api_url: str = _env("GITHUB_API_URL", "https://api.github.com")

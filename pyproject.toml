@@ -7,8 +7,6 @@ dependencies = [
     "fastapi>=0.110",
     "uvicorn[standard]>=0.27",
     "langgraph>=0.2",
-    "langchain-openai>=0.1",
-    "openai>=1.30",
     "sqlalchemy>=2.0",
     "aiosqlite>=0.19",
     "asyncpg>=0.29",
@@ -25,7 +23,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Pick at least one provider backend (or run fully offline with none).
+openai = ["openai>=1.30", "langchain-openai>=0.1"]
+anthropic = ["anthropic>=0.40"]
 dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "anyio>=4.2"]
+providers = ["openai>=1.30", "langchain-openai>=0.1", "anthropic>=0.40"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

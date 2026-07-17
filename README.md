@@ -56,9 +56,11 @@ curl -X POST http://localhost:8002/review \
 
 ## Real deployment
 
-1. `cp .env.example .env` and set `OPENAI_API_KEY`, `GITHUB_WEBHOOK_SECRET`,
-   `GITHUB_TOKEN` (or full GitHub App credentials), `DATABASE_URL`
-   (`postgresql+asyncpg://...`).
+1. `cp .env.example .env`. Configure the LLM via `LLM_PROVIDER` + `LLM_API_KEY`
+   + `LLM_BASE_URL` + `LLM_MODEL` (provider-agnostic — OpenAI, OpenRouter, Groq,
+   DeepSeek, Ollama, vLLM, Azure OpenAI, or Anthropic Claude). Then set
+   `GITHUB_WEBHOOK_SECRET`, `GITHUB_TOKEN` (or full GitHub App credentials),
+   `DATABASE_URL` (`postgresql+asyncpg://...`).
 2. `docker compose up --build` (Redis + Postgres + 5 services + worker +
    Prometheus + Grafana).
 3. In your GitHub repo: **Settings → Webhooks → Add** pointing at the Gateway
@@ -71,8 +73,9 @@ curl -X POST http://localhost:8002/review \
 
 ```
 aiprreviewer/
-├── common/        config, models, llm (OpenAI + offline StubLLM),
-│                  security (HMAC), github client, db, observability
+├── common/        config, models, llm (provider-agnostic: OpenAI-compatible,
+│                  Anthropic, or offline StubLLM), security (HMAC), github client,
+│                  db, observability
 ├── engine/        LangGraph multi-agent review graph + prompts
 ├── gateway/       entry point: verify → forward
 ├── webhook/       parse → dedupe → store → enqueue
@@ -86,7 +89,9 @@ aiprreviewer/
 ```
 
 ## Notes
-- The LLM layer (`common/llm.py`) swaps between real OpenAI and a deterministic
-  `StubLLM` based on `RUN_OFFLINE`. In production set `RUN_OFFLINE=false`.
+- The LLM layer (`common/llm.py`) is **provider-agnostic**: `LLM_PROVIDER` selects
+  an OpenAI-compatible endpoint (OpenAI, OpenRouter, Groq, DeepSeek, Ollama, vLLM,
+  Azure) or native **Anthropic Claude**. With `RUN_OFFLINE=true` (or no
+  key/endpoint) it falls back to the deterministic `StubLLM`.
 - Security agent is aligned with the **OWASP Top 10**.
 - Built and verified on the device of trippusultan (github.com/trippusultan).
