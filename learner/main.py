@@ -15,8 +15,10 @@ from fastapi import FastAPI
 from common.config import settings
 from common.db import connect, load_patterns, upsert_pattern
 from common.models import LearnedPattern
+from common.server import add_landing
 
 app = FastAPI(title="AI PR Reviewer — Learner", version="1.0.0")
+add_landing(app, "Learner", "Closes the self-improving loop: extracts frequently recurring style and architecture issues from merged pull requests and stores them as repo-specific patterns for future reviews.")
 
 
 @app.on_event("startup")

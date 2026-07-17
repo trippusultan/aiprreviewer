@@ -15,8 +15,10 @@ from common.github import parse_webhook
 from common.observability import PR_EVENTS
 from common.db import connect, save_review
 from common.models import PRContext
+from common.server import add_landing
 
 app = FastAPI(title="AI PR Reviewer — Webhook", version="1.0.0")
+add_landing(app, "Webhook", "Receives verified events from the Gateway: parses the PR, de-duplicates by SHA, stores metadata in PostgreSQL, and enqueues the review job.")
 
 _SEEN: set[str] = set()  # in-process dedup cache (Redis-backed in prod)
 

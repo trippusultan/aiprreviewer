@@ -11,8 +11,10 @@ from fastapi import FastAPI, Request, Response
 from common.config import settings
 from common.observability import PR_EVENTS
 from common.security import require_github_signature
+from common.server import add_landing
 
 app = FastAPI(title="AI PR Reviewer — Gateway", version="1.0.0")
+add_landing(app, "Gateway", "Entry point behind the ALB. Verifies the GitHub HMAC signature and forwards only verified webhook events to the Webhook service.")
 
 _WEBHOOK = f"{settings.webhook_url}/webhook"
 
