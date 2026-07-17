@@ -131,3 +131,29 @@ aiprreviewer/
   false success.
 - Security agent is aligned with the **OWASP Top 10**.
 - Built and verified on the device of trippusultan (github.com/trippusultan).
+
+## Live end-to-end test (real GitHub)
+
+`tests/test_live_e2e_ephemeral.py` creates a throwaway public repo, opens a PR
+seeded with intentional issues (hard-coded secret, bare `except`, `global`
+mutation), runs the real review pipeline + Reviewer, asserts findings land on
+the PR, then **deletes the repo** (even on failure). It needs a GitHub PAT
+(`repo` scope) + optionally an LLM key, supplied via env / CI secrets:
+
+| var | purpose |
+|-----|---------|
+| `LIVE_E2E_TOKEN` | GitHub PAT (repo scope) — required to run |
+| `LIVE_E2E_LLM_KEY` | real LLM key; if absent the engine uses `StubLLM` |
+| `LIVE_E2E_LLM_BASE` / `LIVE_E2E_LLM_MODEL` | OpenAI-compatible endpoint + model |
+
+Run locally:
+```bash
+LIVE_E2E_TOKEN=ghp_xxx LIVE_E2E_LLM_KEY=sk-xxx \
+RUN_OFFLINE=false pytest tests/test_live_e2e_ephemeral.py -q -s
+```
+
+In CI it is a separate `live-e2e` job that runs **only on manual
+`workflow_dispatch`** with the `LIVE_E2E_TOKEN` / `LIVE_E2E_LLM_KEY` repository
+secrets configured — it never runs on normal push/PR, so the default suite
+stays offline-green. `tests/test_live_e2e_mock.py` verifies the test's GitHub
+orchestration + teardown against a local mock API (no token needed).

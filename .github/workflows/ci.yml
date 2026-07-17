@@ -4,6 +4,22 @@ on:
   push:
     branches: [main, master]
   pull_request:
+  # Manual trigger for the live e2e against an ephemeral GitHub repo.
+  # Requires you to supply a GitHub PAT (repo scope) and an LLM key.
+  workflow_dispatch:
+    inputs:
+      llm_base:
+        description: "OpenAI-compatible base URL"
+        required: false
+        default: "https://api.openai.com/v1"
+      llm_model:
+        description: "LLM model id"
+        required: false
+        default: "gpt-4o-mini"
+      repo_prefix:
+        description: "Ephemeral repo name prefix"
+        required: false
+        default: "aipr-e2e"
 
 jobs:
   test:
@@ -32,3 +48,29 @@ jobs:
         run: . .venv/bin/activate && uv pip install ".${{ matrix.extras }}" pytest pytest-asyncio httpx
       - name: Run tests (${{ matrix.name }})
         run: . .venv/bin/activate && RUN_OFFLINE=true DATABASE_URL="sqlite+aiosqlite:///:memory:" GITHUB_WEBHOOK_SECRET=ci pytest -q
+
+  # Live end-to-end: creates a throwaway repo, opens a seeded PR, runs the real
+  # review pipeline + Reviewer, asserts findings land, then deletes the repo.
+  # Skipped automatically unless LIVE_E2E_TOKEN is present (manual dispatch with
+  # the secret configured). Never runs on normal push/PR without the secret.
+  live-e2e:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' && secrets.LIVE_E2E_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - run: pip install uv
+      - run: uv venv .venv
+      - name: Install dependencies
+        run: . .venv/bin/activate && uv pip install ".[providers]" pytest pytest-asyncio httpx
+      - name: Run ephemeral live e2e
+        env:
+          LIVE_E2E_TOKEN: ${{ secrets.LIVE_E2E_TOKEN }}
+          LIVE_E2E_LLM_KEY: ${{ secrets.LIVE_E2E_LLM_KEY }}
+          LIVE_E2E_LLM_BASE: ${{ github.event.inputs.llm_base }}
+          LIVE_E2E_LLM_MODEL: ${{ github.event.inputs.llm_model }}
+          LIVE_E2E_REPO_PREFIX: ${{ github.event.inputs.repo_prefix }}
+          RUN_OFFLINE: "false"
+        run: . .venv/bin/activate && DATABASE_URL="sqlite+aiosqlite:///:memory:" GITHUB_WEBHOOK_SECRET=ci pytest tests/test_live_e2e_ephemeral.py -q -s
