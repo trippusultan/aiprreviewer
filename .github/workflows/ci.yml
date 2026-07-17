@@ -47,7 +47,7 @@ jobs:
       - name: Install dependencies
         run: . .venv/bin/activate && uv pip install ".${{ matrix.extras }}" pytest pytest-asyncio httpx
       - name: Run tests (${{ matrix.name }})
-        run: . .venv/bin/activate && RUN_OFFLINE=true DATABASE_URL="sqlite+aiosqlite:///:memory:" GITHUB_WEBHOOK_SECRET=ci pytest -q
+        run: . .venv/bin/activate && RUN_OFFLINE=true DATABASE_URL="sqlite+aiosqlite:///:memory:" GITHUB_WEBHOOK_SECRET=ci pytest -q --ignore=tests/test_live_e2e_mock.py
 
   # Live end-to-end: creates a throwaway repo, opens a seeded PR, runs the real
   # review pipeline + Reviewer, asserts findings land, then deletes the repo.
