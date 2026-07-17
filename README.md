@@ -95,5 +95,11 @@ aiprreviewer/
   an OpenAI-compatible endpoint (OpenAI, OpenRouter, Groq, DeepSeek, Ollama, vLLM,
   Azure) or native **Anthropic Claude**. With `RUN_OFFLINE=true` (or no
   key/endpoint) it falls back to the deterministic `StubLLM`.
+- The **Reviewer** posts each inline comment individually to GitHub's
+  `POST /repos/{owner}/{repo}/pulls/{n}/comments` endpoint (it takes one comment,
+  not a batch) and posts a summary review. Line-less findings are folded into the
+  summary. Posting requires a `GITHUB_TOKEN` (or GitHub App installation token);
+  without one the `/post` response reports `summary_posted: false` rather than a
+  false success.
 - Security agent is aligned with the **OWASP Top 10**.
 - Built and verified on the device of trippusultan (github.com/trippusultan).

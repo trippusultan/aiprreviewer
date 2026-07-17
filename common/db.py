@@ -96,8 +96,11 @@ async def connect(url: str | None = None) -> None:
 
 
 async def dispose() -> None:
-    if _engine:
+    global _engine, _sessionmaker
+    if _engine is not None:
         await _engine.dispose()
+    _engine = None
+    _sessionmaker = None
 
 
 @asynccontextmanager

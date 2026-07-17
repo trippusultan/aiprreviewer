@@ -37,33 +37,63 @@ async def _post(payload: dict) -> dict:
     pr = payload["pr_number"]
     token = await _token(payload.get("installation_id"))
 
-    comments = []
+    # Split findings into line-anchored (postable as inline comments) and
+    # line-less (fold into the summary review, since /comments needs a line).
+    inline, line_less = [], []
     for c in result.comments:
-        if c.file_path and c.line:
-            comments.append(
-                {
-                    "path": c.file_path,
-                    "line": c.line,
-                    "body": f"**[{c.category.value}/{c.severity.value}]** {c.body}"
-                    + (f"\n\n```suggestion\n{c.suggestion}\n```" if c.suggestion else ""),
-                }
-            )
+        (inline if (c.file_path and c.line) else line_less).append(c)
+
+    posted = 0
+    errors = []
     if token:
         headers = {
             "Authorization": f"Bearer {token}",
             "Accept": "application/vnd.github+json",
         }
         async with httpx.AsyncClient(base_url=settings.github_api_url, headers=headers) as client:
-            if comments:
-                await client.post(
-                    f"/repos/{repo}/pulls/{pr}/comments",
-                    json={"comments": comments},
+            # 1) Inline comments — one POST per comment (the GitHub endpoint
+            #    /pulls/{n}/comments accepts a SINGLE comment, not a batch).
+            for c in inline:
+                body = f"**[{c.category.value}/{c.severity.value}]** {c.body}"
+                if c.suggestion:
+                    body += f"\n\n```suggestion\n{c.suggestion}\n```"
+                try:
+                    r = await client.post(
+                        f"/repos/{repo}/pulls/{pr}/comments",
+                        json={"path": c.file_path, "line": c.line, "side": "RIGHT", "body": body},
+                    )
+                    r.raise_for_status()
+                    posted += 1
+                except Exception as e:  # best-effort: record, don't abort the run
+                    errors.append(str(e))
+
+            # 2) Summary review (optionally carrying line-less findings).
+            summary = result.summary
+            if line_less:
+                extra = "\n\nAdditional notes:\n" + "\n".join(
+                    f"- [{c.category.value}/{c.severity.value}] {c.body}" for c in line_less
                 )
-            await client.post(
-                f"/repos/{repo}/pulls/{pr}/reviews",
-                json={"event": "COMMENT", "body": result.summary},
-            )
-    return {"posted": len(comments), "summary_posted": True}
+                summary += extra
+            try:
+                r = await client.post(
+                    f"/repos/{repo}/pulls/{pr}/reviews",
+                    json={"event": "COMMENT", "body": summary},
+                )
+                r.raise_for_status()
+                summary_posted = True
+            except Exception as e:
+                errors.append(str(e))
+                summary_posted = False
+    else:
+        # No token -> cannot post; surface that honestly rather than 200 OK.
+        summary_posted = False
+        errors.append("no_github_token")
+
+    return {
+        "posted": posted,
+        "summary_posted": summary_posted,
+        "errors": errors,
+    }
 
 
 @app.post("/post")

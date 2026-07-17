@@ -18,11 +18,22 @@ try:
 except Exception:  # pragma: no cover
     _PROM_AVAILABLE = False
 
-    def _noop(*_a, **_k):
-        return None
-
     PR_EVENTS = REVIEW_RUNS = AGENT_CALLS = None
-    REVIEW_LATENCY = type("X", (), {"time": lambda self: (lambda *_a, **_k: None)})()
+    REVIEW_LATENCY = _NoOpLatency()
+
+
+class _NoOpLatency:
+    """Context-manager stand-in so `with REVIEW_LATENCY.time():` works
+    even when prometheus_client is not installed."""
+
+    def time(self):
+        return self
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
 
 
 def instrument(app) -> None:

@@ -6,6 +6,7 @@ events to the Webhook service. Mirrors the diagram's Gateway box.
 from __future__ import annotations
 
 import httpx
+import json
 from fastapi import FastAPI, Request, Response
 
 from common.config import settings
@@ -30,7 +31,12 @@ async def health():
 async def inbound(request: Request):
     body = await require_github_signature(request)  # 401 if signature invalid
     event = request.headers.get("X-GitHub-Event", "unknown")
-    action = request.headers.get("X-GitHub-Event-Action", "unknown")
+    # GitHub puts the action in the JSON body, not a header (there is no
+    # X-GitHub-Event-Action header), so read it from the payload.
+    try:
+        action = (json.loads(body) or {}).get("action", "unknown")
+    except Exception:
+        action = "unknown"
     if PR_EVENTS is not None:
         PR_EVENTS.labels(action=action, service="gateway").inc()
     # Forward verified payload downstream (verified only).
@@ -41,7 +47,6 @@ async def inbound(request: Request):
             headers={
                 "Content-Type": "application/json",
                 "X-GitHub-Event": event,
-                "X-GitHub-Event-Action": action,
             },
             timeout=10,
         )
