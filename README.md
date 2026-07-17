@@ -1,5 +1,7 @@
 # AI-Powered GitHub PR Code Reviewer
 
+![CI](https://github.com/trippusultan/aiprreviewer/actions/workflows/ci.yml/badge.svg)
+
 An event-driven, multi-agent code review system. When a developer opens / updates
 a pull request, a GitHub webhook triggers a pipeline that fetches the diff and runs
 **four parallel AI review agents** (Static Analysis, Security, Architecture,
