@@ -8,13 +8,10 @@ PostgreSQL) plus the Learner feedback edge.
 """
 from __future__ import annotations
 
-import asyncio
 import hashlib
-import json
-from typing import Optional
 
 import httpx
-from fastapi import FastAPI, Request
+from fastapi import BackgroundTasks, FastAPI, Request
 
 from common.config import settings
 from common.github import fetch_pr_diff, get_installation_token, parse_webhook
@@ -74,7 +71,7 @@ async def _learn(ctx: PRContext) -> None:
 
 
 @app.post("/webhook")
-async def inbound(request: Request):
+async def inbound(request: Request, background_tasks: BackgroundTasks):
     payload = await request.json()
     if PR_EVENTS is not None:
         PR_EVENTS.labels(action=payload.get("action", "?"), service="webhook").inc()
@@ -87,7 +84,7 @@ async def inbound(request: Request):
     if payload.get("action") == "closed" and payload.get("pull_request", {}).get(
         "merged"
     ):
-        asyncio.create_task(_learn(ctx))
+        background_tasks.add_task(_learn, ctx)
         return {"accepted": True, "reason": "merged_learn_queued"}
 
     key = _dedupe_key(ctx)
@@ -95,9 +92,9 @@ async def inbound(request: Request):
         return {"accepted": False, "reason": "duplicate_sha"}
     _SEEN.add(key)
 
-    # Enqueue via Celery when a broker is configured (production); otherwise
-    # run in-process (offline/dev/test). This keeps Celery/Redis imports out
-    # of the offline path entirely.
+    # Enqueue via Celery when a broker is configured (production). Otherwise
+    # schedule in-process via FastAPI BackgroundTasks, which Starlette awaits
+    # within the request's event loop (no leaked asyncio task at teardown).
     if not settings.run_offline:
         try:
             from worker.tasks import process_pr_task
@@ -107,6 +104,6 @@ async def inbound(request: Request):
             pass  # fall through to in-process below
     from worker.pipeline import process_pr
 
-    asyncio.create_task(process_pr(payload))
+    background_tasks.add_task(process_pr, payload)
 
     return {"accepted": True, "repo": ctx.repo_full_name, "pr": ctx.pr_number}
