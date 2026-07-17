@@ -13,6 +13,34 @@ service extracts recurring patterns from merged PRs so future reviews get smarte
 > (https://roadmap.sh/projects/ai-powered-code-review-pipeline). Built as the
 > roadmap.sh *AI-Powered Code Review Pipeline* project solution.
 
+```mermaid
+flowchart LR
+    Dev([Developer]) -->|open/update PR| GH[(GitHub)]
+    GH -->|webhook + HMAC| GW[Gateway\nHMAC verify]
+    GW --> WH[Webhook\nparse / dedupe / store]
+    WH -->|enqueue| RD[(Redis)]
+    RD -->|task| CW[Celery Worker\nprocess_pr]
+    CW --> OR[Orchestrator\nfetch diff + load patterns]
+    OR --> LG{{LangGraph}}
+    LG --> S0[Static Agent]
+    LG --> S1[Security Agent\nOWASP]
+    LG --> S2[Architecture Agent]
+    LG --> S3[Style Agent]
+    S0 & S1 & S2 & S3 --> MR[Merge + de-dupe]
+    MR --> PG[(PostgreSQL\nreviews + learned_patterns)]
+    MR --> RV[Reviewer\nGitHub App / token]
+    RV -->|inline comments + summary| GH
+    GH -->|closed + merged| WH
+    WH --> LN[Learner\nextract patterns]
+    LN --> PG
+    OR -. patterns .-> LG
+
+    subgraph Observability
+        PR[Prometheus] --> GR[Grafana]
+    end
+    GW & WH & OR & RV & LN -. /metrics .-> PR
+```
+
 ---
 
 ## What you get

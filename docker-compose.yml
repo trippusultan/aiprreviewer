@@ -40,7 +40,7 @@ services:
     ports: ["8001:8001"]
 
   orchestrator:
-    build: { context: ., dockerfile: Dockerfile, args: { SERVICE: orchestrator } }
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE: orchestrator, INSTALL_PROVIDERS: "1" } }
     environment: *env
     ports: ["8002:8002"]
 
@@ -50,12 +50,12 @@ services:
     ports: ["8003:8003"]
 
   learner:
-    build: { context: ., dockerfile: Dockerfile, args: { SERVICE: learner } }
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE: learner, INSTALL_PROVIDERS: "1" } }
     environment: *env
     ports: ["8004:8004"]
 
   worker:
-    build: { context: ., dockerfile: Dockerfile, args: { SERVICE: worker } }
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE: worker, INSTALL_PROVIDERS: "1" } }
     environment: *env
     command: celery -A worker.celery_app worker --loglevel=info
 
@@ -70,6 +70,10 @@ services:
     ports: ["3000:3000"]
     environment:
       GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - prometheus
 
 volumes:
   pgdata:

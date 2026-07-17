@@ -1,0 +1,78 @@
+{
+  "title": "AI PR Reviewer — Observability",
+  "uid": "aiprreviewer",
+  "schemaVersion": 39,
+  "timezone": "browser",
+  "refresh": "10s",
+  "time": { "from": "now-1h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "service",
+        "type": "textbox",
+        "label": "Service (optional)",
+        "current": { "text": "", "value": "" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "PR events received",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(rate(aipr_pr_events_total[1m])) by (action)",
+          "legendFormat": "{{action}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Review runs (by status)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(rate(aipr_review_runs_total[1m])) by (status)",
+          "legendFormat": "{{status}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Agent LLM calls",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "sum(rate(aipr_agent_calls_total[1m])) by (agent)",
+          "legendFormat": "{{agent}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Review latency p50 / p95 (s)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        { "expr": "histogram_quantile(0.5, sum(rate(aipr_review_latency_seconds_bucket[5m])) by (le))", "legendFormat": "p50" },
+        { "expr": "histogram_quantile(0.95, sum(rate(aipr_review_latency_seconds_bucket[5m])) by (le))", "legendFormat": "p95" }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "HTTP requests (FastAPI instrumentator)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total[1m])) by (handler, method)",
+          "legendFormat": "{{method}} {{handler}}"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: aiprreviewer
+    orgId: 1
+    folder: AI PR Reviewer
+    type: dashboards
+    disableDeletion: false
+    editable: true
+    options:
+      path: /etc/grafana/provisioning/dashboards
