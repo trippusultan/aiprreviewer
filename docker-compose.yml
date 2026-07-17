@@ -1,9 +1,19 @@
 # AI PR Reviewer — full stack
 # Offline-friendly: set RUN_OFFLINE=true to use StubLLM + sqlite (no OpenAI/Redis/PG).
+#
+# NOTE: each service listens on its own PORT (set per-service below) so the
+# inter-service URLs (gateway -> webhook:8001, orchestrator -> reviewer:8003,
+# webhook -> learner:8004) actually resolve inside the Docker network. The base
+# image defaults to 8000 if PORT is unset, which would break cross-service calls.
 services:
   redis:
     image: redis:7-alpine
     ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
 
   postgres:
     image: postgres:16-alpine
@@ -14,11 +24,17 @@ services:
     ports: ["5432:5432"]
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aipr"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
 
   gateway:
     build: { context: ., dockerfile: Dockerfile, args: { SERVICE: gateway } }
     environment: &env
       RUN_OFFLINE: "false"
+      PORT: "8000"
       DATABASE_URL: postgresql+asyncpg://aipr:aipr@postgres:5432/aipr
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/0
@@ -29,35 +45,88 @@ services:
       LLM_BASE_URL: ${LLM_BASE_URL:-https://api.openai.com/v1}
       LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      WEBHOOK_URL: http://webhook:8001
       ORCHESTRATOR_URL: http://orchestrator:8002
       REVIEWER_URL: http://reviewer:8003
       LEARNER_URL: http://learner:8004
     ports: ["8000:8000"]
+    depends_on:
+      webhook: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      postgres: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
 
   webhook:
     build: { context: ., dockerfile: Dockerfile, args: { SERVICE: webhook } }
-    environment: *env
+    environment:
+      <<: *env
+      PORT: "8001"
     ports: ["8001:8001"]
+    depends_on:
+      redis: { condition: service_healthy }
+      postgres: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8001/health').status==200 else 1)"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
 
   orchestrator:
     build: { context: ., dockerfile: Dockerfile, args: { SERVICE: orchestrator, INSTALL_PROVIDERS: "1" } }
-    environment: *env
+    environment:
+      <<: *env
+      PORT: "8002"
     ports: ["8002:8002"]
+    depends_on:
+      redis: { condition: service_healthy }
+      postgres: { condition: service_healthy }
+      reviewer: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8002/health').status==200 else 1)"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
 
   reviewer:
     build: { context: ., dockerfile: Dockerfile, args: { SERVICE: reviewer } }
-    environment: *env
+    environment:
+      <<: *env
+      PORT: "8003"
     ports: ["8003:8003"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8003/health').status==200 else 1)"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
 
   learner:
     build: { context: ., dockerfile: Dockerfile, args: { SERVICE: learner, INSTALL_PROVIDERS: "1" } }
-    environment: *env
+    environment:
+      <<: *env
+      PORT: "8004"
     ports: ["8004:8004"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8004/health').status==200 else 1)"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
 
   worker:
     build: { context: ., dockerfile: Dockerfile, args: { SERVICE: worker, INSTALL_PROVIDERS: "1" } }
-    environment: *env
+    environment:
+      <<: *env
     command: celery -A worker.celery_app worker --loglevel=info
+    depends_on:
+      redis: { condition: service_healthy }
+      postgres: { condition: service_healthy }
 
   prometheus:
     image: prom/prometheus:latest
