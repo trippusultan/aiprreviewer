@@ -25,6 +25,18 @@ except Exception:  # pragma: no cover
     REVIEW_LATENCY = type("X", (), {"time": lambda self: (lambda *_a, **_k: None)})()
 
 
+def instrument(app) -> None:
+    """Expose Prometheus /metrics on a FastAPI app (idempotent)."""
+    if not _PROM_AVAILABLE:
+        return
+    try:
+        from prometheus_fastapi_instrumentator import Instrumentator
+
+        Instrumentator().instrument(app).expose(app, endpoint="/metrics")
+    except Exception:
+        pass
+
+
 def trace(name: str, **metadata):
     """Emit a Langfuse trace span if configured, otherwise no-op."""
     if not (

@@ -20,6 +20,7 @@ dependencies = [
     "cryptography>=42",
     "python-dotenv>=1.0",
     "prometheus-client>=0.20",
+    "prometheus-fastapi-instrumentator>=7.0",
     "langfuse>=2.0",
 ]
 
@@ -35,3 +36,6 @@ filterwarnings = ["ignore::DeprecationWarning"]
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["common", "engine", "gateway", "webhook", "orchestrator", "reviewer", "learner", "worker"]

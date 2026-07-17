@@ -13,9 +13,11 @@ from common.config import settings
 from common.github import get_installation_token
 from common.models import ReviewComment, ReviewResult
 from common.server import add_landing
+from common.observability import instrument
 
 app = FastAPI(title="AI PR Reviewer — Reviewer", version="1.0.0")
 add_landing(app, "Reviewer", "Authenticates with the GitHub App (JWT → installation token) and posts inline comments and an overall summary review back onto the pull request.")
+instrument(app)
 
 
 @app.get("/health")

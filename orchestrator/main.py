@@ -16,9 +16,11 @@ from common.models import PRContext, ReviewRecord, ReviewResult
 from common.observability import REVIEW_RUNS, REVIEW_LATENCY
 from engine import run_review
 from common.server import add_landing
+from common.observability import instrument
 
 app = FastAPI(title="AI PR Reviewer — Orchestrator", version="1.0.0")
 add_landing(app, "Orchestrator", "Drives the review: fetches the code diff, loads repo-specific learned patterns, runs the LangGraph multi-agent engine, and hands the merged result to the Reviewer.")
+instrument(app)
 
 
 @app.on_event("startup")

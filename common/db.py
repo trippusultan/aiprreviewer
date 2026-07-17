@@ -62,7 +62,17 @@ class PatternRow(Base):
 
 
 def _engine_for(url: str) -> AsyncEngine:
-    # Pool pre-ping helps under serverless; connect_args keep sqlite happy.
+    # In-memory sqlite needs a single shared connection (StaticPool), otherwise
+    # each pooled connection gets its own empty DB and tables vanish.
+    if url.startswith("sqlite") and ":memory:" in url:
+        from sqlalchemy.pool import StaticPool
+
+        return create_async_engine(
+            url,
+            echo=False,
+            poolclass=StaticPool,
+            connect_args={"check_same_thread": False},
+        )
     connect_args = {"check_same_thread": False} if url.startswith("sqlite") else {}
     return create_async_engine(url, echo=False, pool_pre_ping=True, connect_args=connect_args)
 
@@ -73,6 +83,11 @@ _sessionmaker: async_sessionmaker[AsyncSession] | None = None
 
 async def connect(url: str | None = None) -> None:
     global _engine, _sessionmaker
+    # Idempotent: if we already have a session factory, reuse it. Recreating
+    # would swap the global engine to a fresh (empty) in-memory DB and wipe
+    # tables mid-run (e.g. when a background task also calls connect()).
+    if _sessionmaker is not None:
+        return
     target = url or settings.database_url
     _engine = _engine_for(target)
     _sessionmaker = async_sessionmaker(_engine, expire_on_commit=False)

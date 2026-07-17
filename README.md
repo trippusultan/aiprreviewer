@@ -35,8 +35,7 @@ service extracts recurring patterns from merged PRs so future reviews get smarte
 ```bash
 uv venv .venv && . .venv/Scripts/activate      # or: source .venv/bin/activate
 uv pip install . pytest pytest-asyncio httpx
-RUN_OFFLINE=true DATABASE_URL="sqlite+aiosqlite:///:memory:" \
-  GITHUB_WEBHOOK_SECRET=ci pytest -q            # full engine + security + service tests
+RUN_OFFLINE=true pytest -q                     # full suite: engine, security, services, integration
 ```
 
 Launch the five services locally (StubLLM + sqlite):
